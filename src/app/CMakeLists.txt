@@ -1,6 +1,7 @@
 qt_add_executable(mini_sapr
                     sapr.cpp sapr.h sapr.ui
                     schemawidget.cpp schemawidget.h
+                    filehandler.cpp filehandler.h
                     main.cpp)
 
 target_link_libraries(mini_sapr PRIVATE

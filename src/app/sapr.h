@@ -7,11 +7,14 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QGridLayout>
+#include "filehandler.h"
 #include "schemawidget.h"
 
 namespace Ui {
 class MainWindow;
 }
+
+class FileHandler;
 
 class Sapr : public QMainWindow {
     Q_OBJECT
@@ -19,12 +22,27 @@ class Sapr : public QMainWindow {
   public:
     explicit Sapr(QWidget *parent = nullptr);
 
-  private slots:
-    void on_BarsAdd_clicked();
-    void on_LengthEdit_textChanged(const QString &text);
-    void on_DeleteButton_clicked();
+    // Public methods for FileHandler
+    bool getLeftAnchor() const;
+    bool getRightAnchor() const;
+    int getBarCount() const { return barCount; }
+    QString getBarLength(int index) const;
+    QString getBarSurface(int index) const;
+    QString getBarElasticModulus(int index) const;
+    QString getBarTensileStrength(int index) const;
+    QVector<QVector<double>> getAllNodeForces();
+    QVector<QVector<double>> getAllBarForces();
 
-  private:
+    // Public setters for FileHandler
+    void setLeftAnchor(bool anchored);
+    void setRightAnchor(bool anchored);
+    void clearAllBars();
+    void addBar();
+    void setBarProperties(int index, const QString &length, const QString &surface,
+                          const QString &elasticModulus, const QString &tensileStrength);
+    void setNodeForces(const QVector<QVector<double>> &forces);
+    void setBarForces(const QVector<QVector<double>> &forces);
+
     Ui::MainWindow *ui;
     int barCount = 0;
     QLabel *headerNumber = nullptr;
@@ -44,11 +62,20 @@ class Sapr : public QMainWindow {
     QVector<QLineEdit *> elasticModulusEdits;
     QVector<QLineEdit *> tensileStrengthEdits;
 
-    void updateRowNumbers();
-    void updateStartPoints();
-    double getLengthValue(int index);
-    void updateSchemaData();
-    void removeBar(int index);
+    QVector<QVector<double>> savedNodeForces;
+    QVector<QVector<double>> savedBarForces;
+
+  private slots:
+    void on_BarsAdd_clicked();
+    void on_LengthEdit_textChanged(const QString &text);
+    void on_DeleteButton_clicked();
+    void on_action_2_triggered(); // Save
+    void on_action_3_triggered(); // Open
+    void on_action_5_triggered(); // Exit
+
+  private:
+    friend class FileHandler;
+
     QGridLayout *nodeForcesGrid = nullptr;
     QVector<QLabel *> nodeForcesNodeLabels;
     QVector<QLabel *> nodeForcesStartLabels;
@@ -56,19 +83,29 @@ class Sapr : public QMainWindow {
     QVector<QLineEdit *> nodeForcesHEdits;
     QVector<QLineEdit *> nodeForcesVEdits;
 
-    QVector<double> getNodeForces(int nodeIndex);
-    QVector<QVector<double>> getAllNodeForces();
-    void updateNodeForces();
-    void setupNodeForcesHeaders();
-
     QGridLayout *barForcesGrid = nullptr;
     QVector<QLabel *> barForcesBarLabels;
     QVector<QLineEdit *> barForcesHEdits;
     QVector<QLineEdit *> barForcesVEdits;
 
+    void updateRowNumbers();
+    void updateStartPoints();
+    double getLengthValue(int index);
+    void updateSchemaData();
+    void removeBar(int index);
+
+    QVector<double> getNodeForces(int nodeIndex);
+    void updateNodeForces(bool skipSave);
+    void setupNodeForcesHeaders();
+    void saveNodeForces();
+    void loadNodeForces();
+
     QVector<double> getBarForces(int nodeIndex);
-    QVector<QVector<double>> getAllBarForces();
-    void updateBarForces();
+    void updateBarForces(bool skipSave);
     void setupBarForcesHeaders();
+    void saveBarForces();
+    void loadBarForces();
+
+    void applyLoadedForces();
 };
 #endif

@@ -1,15 +1,91 @@
 #include "sapr.h"
 #include "ui_sapr.h"
+#include "filehandler.h"
 #include <QLabel>
 #include <QPushButton>
-#include <qlabel.h>
-#include <qlineedit.h>
-#include <qnamespace.h>
 #include <QDoubleValidator>
-#include <qobject.h>
-#include <qpushbutton.h>
-#include <qtpreprocessorsupport.h>
 #include <QPainter>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QDebug>
+
+// Public getters for FileHandler
+bool Sapr::getLeftAnchor() const { return ui->checkBoxLeft->isChecked(); }
+bool Sapr::getRightAnchor() const { return ui->checkBoxRight->isChecked(); }
+
+QString Sapr::getBarLength(int index) const {
+    return (index >= 0 && index < lengthEdits.size()) ? lengthEdits[index]->text() : "";
+}
+
+QString Sapr::getBarSurface(int index) const {
+    return (index >= 0 && index < surfaceEdits.size()) ? surfaceEdits[index]->text() : "";
+}
+
+QString Sapr::getBarElasticModulus(int index) const {
+    return (index >= 0 && index < elasticModulusEdits.size()) ? elasticModulusEdits[index]->text()
+                                                              : "";
+}
+
+QString Sapr::getBarTensileStrength(int index) const {
+    return (index >= 0 && index < tensileStrengthEdits.size()) ? tensileStrengthEdits[index]->text()
+                                                               : "";
+}
+
+// Public setters for FileHandler
+void Sapr::setLeftAnchor(bool anchored) { ui->checkBoxLeft->setChecked(anchored); }
+void Sapr::setRightAnchor(bool anchored) { ui->checkBoxRight->setChecked(anchored); }
+
+void Sapr::clearAllBars() {
+    while (barCount > 0) {
+        removeBar(0);
+    }
+}
+
+void Sapr::addBar() { on_BarsAdd_clicked(); }
+
+void Sapr::setBarProperties(int index, const QString &length, const QString &surface,
+                            const QString &elasticModulus, const QString &tensileStrength) {
+    if (index >= 0 && index < barCount) {
+        if (index < lengthEdits.size())
+            lengthEdits[index]->setText(length);
+        if (index < surfaceEdits.size())
+            surfaceEdits[index]->setText(surface);
+        if (index < elasticModulusEdits.size())
+            elasticModulusEdits[index]->setText(elasticModulus);
+        if (index < tensileStrengthEdits.size())
+            tensileStrengthEdits[index]->setText(tensileStrength);
+    }
+}
+
+void Sapr::setNodeForces(const QVector<QVector<double>> &forces) {
+    savedNodeForces.clear();
+    for (const auto &force : forces) {
+        if (force.size() >= 2) {
+            QVector<double> formattedForce;
+            double hForce = force[0];
+            double vForce = force[1];
+            formattedForce << hForce << vForce;
+            // For file loading: always assume values are present (not empty)
+            formattedForce << 0.0 << 0.0; // Mark both as non-empty
+            savedNodeForces.append(formattedForce);
+        }
+    }
+}
+
+void Sapr::setBarForces(const QVector<QVector<double>> &forces) {
+    savedBarForces.clear();
+    for (const auto &force : forces) {
+        if (force.size() >= 2) {
+            QVector<double> formattedForce;
+            double hForce = force[0];
+            double vForce = force[1];
+            formattedForce << hForce << vForce;
+            // For file loading: always assume values are present (not empty)
+            formattedForce << 0.0 << 0.0; // Mark both as non-empty
+            savedBarForces.append(formattedForce);
+        }
+    }
+}
 
 Sapr::Sapr(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), barCount(0), headerNumber(nullptr),
@@ -19,12 +95,17 @@ Sapr::Sapr(QWidget *parent)
 
     ui->BarsGrid->setVerticalSpacing(2);
 
-    schemaWidget = new SchemaWidget(ui->SchemaTab);
-    schemaWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    schemaWidget->setStyleSheet("background-color: white;");
+    QWidget *schemaContainer = new QWidget(ui->SchemaTab);
+    QVBoxLayout *schemaContainerLayout = new QVBoxLayout(schemaContainer);
+    schemaContainerLayout->setContentsMargins(0, 0, 0, 0);
+    schemaContainerLayout->setSpacing(0);
+
+    schemaWidget = new SchemaWidget(schemaContainer);
+    schemaContainerLayout->addWidget(schemaWidget);
 
     QVBoxLayout *schemaLayout = new QVBoxLayout(ui->SchemaTab);
-    schemaLayout->addWidget(schemaWidget);
+    schemaLayout->setContentsMargins(0, 0, 0, 0);
+    schemaLayout->setSpacing(0);
 
     connect(ui->checkBoxLeft, &QCheckBox::toggled, this, [this](bool checked) {
         if (schemaWidget) {
@@ -36,10 +117,96 @@ Sapr::Sapr(QWidget *parent)
             updateSchemaData();
         }
     });
+    connect(ui->ForcesTabs, &QTabWidget::currentChanged, this, [this](int index) {
+        if (schemaWidget) {
+            updateSchemaData();
+        }
+    });
+
+    QHBoxLayout *controlLayout = new QHBoxLayout();
+    QPushButton *zoomInButton = new QPushButton("+");
+    QPushButton *zoomOutButton = new QPushButton("-");
+    QPushButton *fitButton = new QPushButton("Уместить");
+
+    connect(zoomInButton, &QPushButton::clicked, this, [this]() {
+        if (schemaWidget) {
+            double currentScale = schemaWidget->getScale();
+            schemaWidget->setScale(currentScale * 1.2);
+        }
+    });
+    connect(zoomOutButton, &QPushButton::clicked, this, [this]() {
+        if (schemaWidget) {
+            double currentScale = schemaWidget->getScale();
+            schemaWidget->setScale(currentScale / 1.2);
+        }
+    });
+    connect(fitButton, &QPushButton::clicked, this, [this]() {
+        if (schemaWidget) {
+            schemaWidget->fitToView();
+        }
+    });
+
+    QFrame *separator = new QFrame();
+    separator->setFrameShape(QFrame::VLine);
+    separator->setFrameShadow(QFrame::Sunken);
+
+    QCheckBox *nodeNumbersCheck = new QCheckBox("Номера узлов");
+    QCheckBox *barNumbersCheck = new QCheckBox("Номера стержней");
+    QCheckBox *axisNumbersCheck = new QCheckBox("Координаты");
+    QCheckBox *nodeForcesCheck = new QCheckBox("Точечные силы");
+    QCheckBox *barForcesCheck = new QCheckBox("Продольные силы");
+    nodeNumbersCheck->setChecked(true);
+    barNumbersCheck->setChecked(true);
+    axisNumbersCheck->setChecked(true);
+    nodeForcesCheck->setChecked(true);
+    barForcesCheck->setChecked(true);
+
+    connect(nodeNumbersCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (schemaWidget) {
+            schemaWidget->setShowNodeNumbers(checked);
+        }
+    });
+    connect(barNumbersCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (schemaWidget) {
+            schemaWidget->setShowBarNumbers(checked);
+        }
+    });
+    connect(axisNumbersCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (schemaWidget) {
+            schemaWidget->setShowAxisNumbers(checked);
+        }
+    });
+    connect(nodeForcesCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (schemaWidget) {
+            schemaWidget->setShowNodeForces(checked);
+        }
+    });
+    connect(barForcesCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (schemaWidget) {
+            schemaWidget->setShowBarForces(checked);
+        }
+    });
+
+    controlLayout->addWidget(zoomInButton);
+    controlLayout->addWidget(zoomOutButton);
+    controlLayout->addWidget(fitButton);
+    controlLayout->addWidget(separator);
+    controlLayout->addWidget(nodeNumbersCheck);
+    controlLayout->addWidget(barNumbersCheck);
+    controlLayout->addWidget(axisNumbersCheck);
+    controlLayout->addWidget(nodeForcesCheck);
+    controlLayout->addWidget(barForcesCheck);
+    controlLayout->addStretch();
+
+    schemaLayout->addLayout(controlLayout);
+    schemaLayout->addWidget(schemaContainer);
 }
 
 bool firstAdd = true;
 void Sapr::on_BarsAdd_clicked() {
+    saveNodeForces();
+    saveBarForces();
+
     if (firstAdd & (barCount == 0)) {
         headerNumber = new QLabel("Номер");
         headerLength = new QLabel("Длина (L)");
@@ -85,7 +252,7 @@ void Sapr::on_BarsAdd_clicked() {
 
     QDoubleValidator *lengthValidator = new QDoubleValidator(0.0, 100000.0, 3, lengthEdit);
     lengthEdit->setValidator(lengthValidator);
-    lengthEdit->setPlaceholderText("0.0");
+    lengthEdit->setPlaceholderText("м");
 
     QDoubleValidator *surfaceValidator = new QDoubleValidator(0.0, 100000.0, 3, surfaceEdit);
     surfaceEdit->setValidator(surfaceValidator);
@@ -146,8 +313,11 @@ void Sapr::on_BarsAdd_clicked() {
 
     ui->BarsGrid->setRowStretch(row, 0);
 
-    updateNodeForces();
-    updateBarForces();
+    updateNodeForces(false);
+    updateBarForces(false);
+    loadNodeForces();
+    loadBarForces();
+
     updateStartPoints();
     updateSchemaData();
 }
@@ -162,6 +332,23 @@ void Sapr::on_DeleteButton_clicked() {
     QPushButton *button = qobject_cast<QPushButton *>(sender());
     if (button) {
         int index = button->property("rowIndex").toInt();
+
+        // Check if shift key is pressed for immediate deletion
+        bool shiftPressed = QApplication::keyboardModifiers() & Qt::ShiftModifier;
+
+        if (!shiftPressed) {
+            // Show confirmation dialog
+            QMessageBox::StandardButton reply;
+            reply = QMessageBox::question(
+                this, "Подтверждение удаления",
+                QString("Вы действительно хотите удалить стержень %1?").arg(index + 1),
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (reply != QMessageBox::Yes) {
+                return; // User canceled deletion
+            }
+        }
+
         removeBar(index);
     }
 }
@@ -193,22 +380,25 @@ void Sapr::removeBar(int index) {
     if (index < 0 || index >= numberLabels.size())
         return;
 
+    saveNodeForces();
+    saveBarForces();
+
     // Delete the bar widgets
     delete numberLabels[index];
+    delete startPointLabels[index];
     delete lengthEdits[index];
     delete surfaceEdits[index];
     delete elasticModulusEdits[index];
     delete tensileStrengthEdits[index];
-    delete startPointLabels[index];
     delete deleteButtons[index];
 
     // Remove from vectors
     numberLabels.remove(index);
+    startPointLabels.remove(index);
     lengthEdits.remove(index);
     surfaceEdits.remove(index);
     elasticModulusEdits.remove(index);
     tensileStrengthEdits.remove(index);
-    startPointLabels.remove(index);
     deleteButtons.remove(index);
 
     barCount--;
@@ -231,6 +421,10 @@ void Sapr::removeBar(int index) {
         headerAction = nullptr;
         firstAdd = true;
 
+        // Clear saved forces
+        savedNodeForces.clear();
+        savedBarForces.clear();
+
         // Clear the grid completely
         QLayoutItem *child;
         while ((child = ui->BarsGrid->takeAt(0)) != nullptr) {
@@ -239,6 +433,41 @@ void Sapr::removeBar(int index) {
                 delete child->widget();
             }
             delete child;
+        }
+        // Clear node forces headers and widgets
+        if (nodeForcesGrid) {
+            QLayoutItem *forceChild;
+            while ((forceChild = nodeForcesGrid->takeAt(0)) != nullptr) {
+                if (forceChild->widget()) {
+                    nodeForcesGrid->removeWidget(forceChild->widget());
+                    delete forceChild->widget();
+                }
+                delete forceChild;
+            }
+
+            // Clear the vectors
+            nodeForcesNodeLabels.clear();
+            nodeForcesStartLabels.clear();
+            nodeForcesEndLabels.clear();
+            nodeForcesHEdits.clear();
+            nodeForcesVEdits.clear();
+        }
+
+        // Clear bar forces headers and widgets
+        if (barForcesGrid) {
+            QLayoutItem *barForceChild;
+            while ((barForceChild = barForcesGrid->takeAt(0)) != nullptr) {
+                if (barForceChild->widget()) {
+                    barForcesGrid->removeWidget(barForceChild->widget());
+                    delete barForceChild->widget();
+                }
+                delete barForceChild;
+            }
+
+            // Clear the vectors
+            barForcesBarLabels.clear();
+            barForcesHEdits.clear();
+            barForcesVEdits.clear();
         }
     } else {
         QLayoutItem *child;
@@ -270,13 +499,35 @@ void Sapr::removeBar(int index) {
             ui->BarsGrid->addWidget(surfaceEdits[i], row, 3);
             ui->BarsGrid->addWidget(elasticModulusEdits[i], row, 4);
             ui->BarsGrid->addWidget(tensileStrengthEdits[i], row, 5);
-            ui->BarsGrid->addWidget(deleteButtons[i], row, 4);
+            ui->BarsGrid->addWidget(deleteButtons[i], row, 6);
 
             ui->BarsGrid->setRowStretch(row, 0);
         }
     }
-    updateNodeForces();
-    updateBarForces();
+
+    // Clear the forces at the nodes of the deleted bar
+    // When removing bar at index, we clear nodes at index and index+1
+    if (index < savedNodeForces.size()) {
+        // Clear the node at the start of the deleted bar
+        savedNodeForces[index] = QVector<double>()
+                                 << 0.0 << 0.0 << 1.0 << 1.0; // Mark both as empty
+    }
+    if (index + 1 < savedNodeForces.size()) {
+        // Clear the node at the end of the deleted bar
+        savedNodeForces[index + 1] = QVector<double>()
+                                     << 0.0 << 0.0 << 1.0 << 1.0; // Mark both as empty
+    }
+
+    // For bar forces, remove the bar force at the deleted index
+    if (index < savedBarForces.size()) {
+        savedBarForces.remove(index);
+    }
+
+    updateNodeForces(false);
+    updateBarForces(false);
+    loadNodeForces();
+    loadBarForces();
+
     updateStartPoints();
     updateSchemaData();
 }
@@ -313,15 +564,18 @@ void Sapr::setupNodeForcesHeaders() {
 
     // Add headers to grid
     nodeForcesGrid->addWidget(nodeHeader, 0, 0);
-    nodeForcesGrid->addWidget(startOfHeader, 0, 1);
-    nodeForcesGrid->addWidget(endOfHeader, 0, 2);
+    nodeForcesGrid->addWidget(endOfHeader, 0, 1);
+    nodeForcesGrid->addWidget(startOfHeader, 0, 2);
     nodeForcesGrid->addWidget(horizontalHeader, 0, 3);
     nodeForcesGrid->addWidget(verticalHeader, 0, 4);
 }
-void Sapr::updateNodeForces() {
+void Sapr::updateNodeForces(bool skipSave) {
     // Safety check
     if (!nodeForcesGrid)
         return;
+
+    if (!skipSave)
+        saveNodeForces();
 
     // Clear existing node force widgets (keep headers which are at row 0)
     for (auto label : nodeForcesNodeLabels) {
@@ -406,13 +660,23 @@ void Sapr::updateNodeForces() {
         QLineEdit *hEdit = new QLineEdit();
         QLineEdit *vEdit = new QLineEdit();
 
+        nodeLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        startLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        endLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        hEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        vEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
         // Set up validators and placeholders
         QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, hEdit);
         hEdit->setValidator(validator);
         vEdit->setValidator(new QDoubleValidator(-100000.0, 100000.0, 3, vEdit));
 
-        hEdit->setPlaceholderText("0.0");
-        vEdit->setPlaceholderText("0.0");
+        hEdit->setPlaceholderText("Н");
+        vEdit->setPlaceholderText("Н");
+
+        // Connect the input changes to update the schema
+        connect(hEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
+        connect(vEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
 
         // Store references
         nodeForcesStartLabels.append(startLabel);
@@ -422,8 +686,8 @@ void Sapr::updateNodeForces() {
 
         // Add to grid
         nodeForcesGrid->addWidget(nodeLabel, row, 0);
-        nodeForcesGrid->addWidget(startLabel, row, 1);
-        nodeForcesGrid->addWidget(endLabel, row, 2);
+        nodeForcesGrid->addWidget(endLabel, row, 1);
+        nodeForcesGrid->addWidget(startLabel, row, 2);
         nodeForcesGrid->addWidget(hEdit, row, 3);
         nodeForcesGrid->addWidget(vEdit, row, 4);
     }
@@ -462,10 +726,13 @@ void Sapr::setupBarForcesHeaders() {
     barForcesGrid->addWidget(verticalHeader, 0, 2);
 }
 
-void Sapr::updateBarForces() {
+void Sapr::updateBarForces(bool skipSave) {
     // Safety check
     if (!barForcesGrid)
         return;
+
+    if (!skipSave)
+        saveBarForces();
 
     // Clear existing bar force widgets (keep headers which are at row 0)
     for (auto label : barForcesBarLabels) {
@@ -516,20 +783,27 @@ void Sapr::updateBarForces() {
         int row = i + 1;
 
         // Bar label
-        QLabel *barLabel = new QLabel(QString("Стержень %1").arg(i + 1));
+        QLabel *barLabel = new QLabel(QString("%1").arg(i + 1));
         barForcesBarLabels.append(barLabel);
 
         // Force input fields with validators
         QLineEdit *hEdit = new QLineEdit();
         QLineEdit *vEdit = new QLineEdit();
 
+        barLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        hEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        vEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
         // Set up validators and placeholders
         QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, hEdit);
         hEdit->setValidator(validator);
         vEdit->setValidator(new QDoubleValidator(-100000.0, 100000.0, 3, vEdit));
 
-        hEdit->setPlaceholderText("0.0");
-        vEdit->setPlaceholderText("0.0");
+        hEdit->setPlaceholderText("Н/м");
+        vEdit->setPlaceholderText("Н/м");
+
+        connect(hEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
+        connect(vEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
 
         // Store references
         barForcesHEdits.append(hEdit);
@@ -540,6 +814,8 @@ void Sapr::updateBarForces() {
         barForcesGrid->addWidget(hEdit, row, 1);
         barForcesGrid->addWidget(vEdit, row, 2);
     }
+
+    loadBarForces();
 }
 
 void Sapr::updateSchemaData() {
@@ -564,6 +840,12 @@ void Sapr::updateSchemaData() {
         }
         surfaces.append(surface);
     }
+
+    QVector<QVector<double>> nodeForces = getAllNodeForces();
+    QVector<QVector<double>> barForces = getAllBarForces();
+
+    schemaWidget->updateNodeForces(nodeForces);
+    schemaWidget->updateBarForces(barForces);
 
     schemaWidget->updateBars(lengths, surfaces, ui->checkBoxLeft->isChecked(),
                              ui->checkBoxRight->isChecked());
@@ -611,4 +893,214 @@ QVector<QVector<double>> Sapr::getAllBarForces() {
         allForces.append(getBarForces(i));
     }
     return allForces;
+}
+
+void Sapr::saveNodeForces() {
+    savedNodeForces.clear();
+    for (int i = 0; i < nodeForcesHEdits.size(); i++) {
+        QVector<double> forces;
+        if (i < nodeForcesHEdits.size() && nodeForcesHEdits[i]) {
+            QString hText = nodeForcesHEdits[i]->text();
+            if (!hText.isEmpty()) {
+                forces << hText.toDouble();
+            } else {
+                forces << 0.0; // Use a special marker for empty values
+            }
+        } else {
+            forces << 0.0;
+        }
+
+        if (i < nodeForcesVEdits.size() && nodeForcesVEdits[i]) {
+            QString vText = nodeForcesVEdits[i]->text();
+            if (!vText.isEmpty()) {
+                forces << vText.toDouble();
+            } else {
+                forces << 0.0; // Use a special marker for empty values
+            }
+        } else {
+            forces << 0.0;
+        }
+
+        // Add a flag to indicate which values were originally empty
+        bool hWasEmpty = (i < nodeForcesHEdits.size() && nodeForcesHEdits[i] &&
+                          nodeForcesHEdits[i]->text().isEmpty());
+        bool vWasEmpty = (i < nodeForcesVEdits.size() && nodeForcesVEdits[i] &&
+                          nodeForcesVEdits[i]->text().isEmpty());
+        forces << (hWasEmpty ? 1.0 : 0.0); // Use 1.0 to mark empty horizontal force
+        forces << (vWasEmpty ? 1.0 : 0.0); // Use 1.0 to mark empty vertical force
+
+        savedNodeForces.append(forces);
+    }
+}
+/*
+void Sapr::loadNodeForces() {
+    for (int i = 0; i < nodeForcesHEdits.size() && i < savedNodeForces.size(); i++) {
+        if (nodeForcesHEdits[i] && savedNodeForces[i].size() >= 3) {
+            if (savedNodeForces[i][2] == 1.0) { // Was originally empty
+                nodeForcesHEdits[i]->setText("");
+            } else {
+                nodeForcesHEdits[i]->setText(QString::number(savedNodeForces[i][0], 'f', 3));
+            }
+        }
+        if (nodeForcesVEdits[i] && savedNodeForces[i].size() >= 4) {
+            if (savedNodeForces[i][3] == 1.0) { // Was originally empty
+                nodeForcesVEdits[i]->setText("");
+            } else {
+                nodeForcesVEdits[i]->setText(QString::number(savedNodeForces[i][1], 'f', 3));
+            }
+        }
+    }
+}
+*/
+
+void Sapr::saveBarForces() {
+    savedBarForces.clear();
+    for (int i = 0; i < barForcesHEdits.size(); i++) {
+        QVector<double> forces;
+        if (i < barForcesHEdits.size() && barForcesHEdits[i]) {
+            QString hText = barForcesHEdits[i]->text();
+            if (!hText.isEmpty()) {
+                forces << hText.toDouble();
+            } else {
+                forces << 0.0;
+            }
+        } else {
+            forces << 0.0;
+        }
+
+        if (i < barForcesVEdits.size() && barForcesVEdits[i]) {
+            QString vText = barForcesVEdits[i]->text();
+            if (!vText.isEmpty()) {
+                forces << vText.toDouble();
+            } else {
+                forces << 0.0;
+            }
+        } else {
+            forces << 0.0;
+        }
+
+        // Add flags for empty values
+        bool hWasEmpty = (i < barForcesHEdits.size() && barForcesHEdits[i] &&
+                          barForcesHEdits[i]->text().isEmpty());
+        bool vWasEmpty = (i < barForcesVEdits.size() && barForcesVEdits[i] &&
+                          barForcesVEdits[i]->text().isEmpty());
+        forces << (hWasEmpty ? 1.0 : 0.0);
+        forces << (vWasEmpty ? 1.0 : 0.0);
+
+        savedBarForces.append(forces);
+    }
+}
+
+/*
+void Sapr::loadBarForces() {
+    for (int i = 0; i < barForcesHEdits.size() && i < savedBarForces.size(); i++) {
+        if (barForcesHEdits[i] && savedBarForces[i].size() >= 3) {
+            if (savedBarForces[i][2] == 1.0) {
+                barForcesHEdits[i]->setText("");
+            } else {
+                barForcesHEdits[i]->setText(QString::number(savedBarForces[i][0], 'f', 3));
+            }
+        }
+        if (barForcesVEdits[i] && savedBarForces[i].size() >= 4) {
+            if (savedBarForces[i][3] == 1.0) {
+                barForcesVEdits[i]->setText("");
+            } else {
+                barForcesVEdits[i]->setText(QString::number(savedBarForces[i][1], 'f', 3));
+            }
+        }
+    }
+}
+*/
+
+void Sapr::loadNodeForces() {
+    for (int i = 0; i < nodeForcesHEdits.size() && i < savedNodeForces.size(); i++) {
+        if (nodeForcesHEdits[i] && savedNodeForces[i].size() >= 4) {
+            // Only set text if the empty marker is 0.0 (not empty)
+            if (savedNodeForces[i][2] == 0.0) {
+                QString hValue = QString::number(savedNodeForces[i][0], 'f', 3);
+                nodeForcesHEdits[i]->setText(hValue);
+            } else {
+                nodeForcesHEdits[i]->setText("");
+            }
+        }
+        if (nodeForcesVEdits[i] && savedNodeForces[i].size() >= 4) {
+            // Only set text if the empty marker is 0.0 (not empty)
+            if (savedNodeForces[i][3] == 0.0) {
+                QString vValue = QString::number(savedNodeForces[i][1], 'f', 3);
+                nodeForcesVEdits[i]->setText(vValue);
+            } else {
+                nodeForcesVEdits[i]->setText("");
+            }
+        }
+    }
+}
+
+void Sapr::loadBarForces() {
+    for (int i = 0; i < barForcesHEdits.size() && i < savedBarForces.size(); i++) {
+        if (barForcesHEdits[i] && savedBarForces[i].size() >= 4) {
+            // Only set text if the empty marker is 0.0 (not empty)
+            if (savedBarForces[i][2] == 0.0) {
+                QString hValue = QString::number(savedBarForces[i][0], 'f', 3);
+                barForcesHEdits[i]->setText(hValue);
+            } else {
+                barForcesHEdits[i]->setText("");
+            }
+        }
+        if (barForcesVEdits[i] && savedBarForces[i].size() >= 4) {
+            // Only set text if the empty marker is 0.0 (not empty)
+            if (savedBarForces[i][3] == 0.0) {
+                QString vValue = QString::number(savedBarForces[i][1], 'f', 3);
+                barForcesVEdits[i]->setText(vValue);
+            } else {
+                barForcesVEdits[i]->setText("");
+            }
+        }
+    }
+}
+
+void Sapr::on_action_2_triggered() {
+    QString fileName =
+        QFileDialog::getSaveFileName(this, "Сохранить проект", "", "SAPR Files (*.sapr)");
+    if (!fileName.isEmpty()) {
+        if (!fileName.endsWith(".sapr", Qt::CaseInsensitive)) {
+            fileName += ".sapr";
+        }
+        if (FileHandler::saveProject(this, fileName)) {
+            QMessageBox::information(this, "Успех", "Проект сохранен");
+        }
+    }
+}
+
+void Sapr::on_action_3_triggered() {
+    QString fileName =
+        QFileDialog::getOpenFileName(this, "Открыть проект", "", "SAPR Files (*.sapr)");
+    if (!fileName.isEmpty()) {
+        if (FileHandler::loadProject(this, fileName)) {
+            // Update forces with loaded data
+            updateNodeForces(false);
+            updateBarForces(false);
+            loadNodeForces();
+            loadBarForces();
+
+            // Update schema
+            updateStartPoints();
+            updateSchemaData();
+
+            QMessageBox::information(this, "Успех", "Проект загружен");
+        }
+    }
+}
+
+void Sapr::on_action_5_triggered() { QApplication::quit(); }
+
+void Sapr::applyLoadedForces() {
+    // Update forces with loaded data
+    updateNodeForces(true);
+    updateBarForces(true);
+    loadNodeForces();
+    loadBarForces();
+
+    // Update schema
+    updateStartPoints();
+    updateSchemaData();
 }

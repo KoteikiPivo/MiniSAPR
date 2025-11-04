@@ -190,11 +190,6 @@
         <string>Схема</string>
        </attribute>
       </widget>
-      <widget class="QWidget" name="ForcesTab">
-       <attribute name="title">
-        <string>Нагрузки</string>
-       </attribute>
-      </widget>
      </widget>
     </item>
    </layout>
