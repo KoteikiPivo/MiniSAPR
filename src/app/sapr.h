@@ -30,8 +30,8 @@ class Sapr : public QMainWindow {
     QString getBarSurface(int index) const;
     QString getBarElasticModulus(int index) const;
     QString getBarTensileStrength(int index) const;
-    QVector<QVector<double>> getAllNodeForces();
-    QVector<QVector<double>> getAllBarForces();
+    QVector<double> getAllNodeForces();
+    QVector<double> getAllBarForces();
 
     // Public setters for FileHandler
     void setLeftAnchor(bool anchored);
@@ -40,8 +40,8 @@ class Sapr : public QMainWindow {
     void addBar();
     void setBarProperties(int index, const QString &length, const QString &surface,
                           const QString &elasticModulus, const QString &tensileStrength);
-    void setNodeForces(const QVector<QVector<double>> &forces);
-    void setBarForces(const QVector<QVector<double>> &forces);
+    void setNodeForces(const QVector<double> &forces);
+    void setBarForces(const QVector<double> &forces);
 
     Ui::MainWindow *ui;
     int barCount = 0;
@@ -62,8 +62,8 @@ class Sapr : public QMainWindow {
     QVector<QLineEdit *> elasticModulusEdits;
     QVector<QLineEdit *> tensileStrengthEdits;
 
-    QVector<QVector<double>> savedNodeForces;
-    QVector<QVector<double>> savedBarForces;
+    QVector<double> savedNodeForces;
+    QVector<double> savedBarForces;
 
   private slots:
     void on_BarsAdd_clicked();
@@ -80,13 +80,11 @@ class Sapr : public QMainWindow {
     QVector<QLabel *> nodeForcesNodeLabels;
     QVector<QLabel *> nodeForcesStartLabels;
     QVector<QLabel *> nodeForcesEndLabels;
-    QVector<QLineEdit *> nodeForcesHEdits;
-    QVector<QLineEdit *> nodeForcesVEdits;
+    QVector<QLineEdit *> nodeForcesEdits;
 
     QGridLayout *barForcesGrid = nullptr;
     QVector<QLabel *> barForcesBarLabels;
-    QVector<QLineEdit *> barForcesHEdits;
-    QVector<QLineEdit *> barForcesVEdits;
+    QVector<QLineEdit *> barForcesEdits;
 
     void updateRowNumbers();
     void updateStartPoints();
@@ -94,13 +92,13 @@ class Sapr : public QMainWindow {
     void updateSchemaData();
     void removeBar(int index);
 
-    QVector<double> getNodeForces(int nodeIndex);
+    double getNodeForces(int nodeIndex);
     void updateNodeForces(bool skipSave);
     void setupNodeForcesHeaders();
     void saveNodeForces();
     void loadNodeForces();
 
-    QVector<double> getBarForces(int nodeIndex);
+    double getBarForces(int barIndex);
     void updateBarForces(bool skipSave);
     void setupBarForcesHeaders();
     void saveBarForces();

@@ -54,31 +54,19 @@ bool FileHandler::saveProject(Sapr *sapr, const QString &fileName) {
 
     // Save node forces
     out << "[NodeForces]\n";
-    QVector<QVector<double>> nodeForces = sapr->getAllNodeForces();
+    QVector<double> nodeForces = sapr->getAllNodeForces();
     out << "Count=" << nodeForces.size() << "\n";
     for (int i = 0; i < nodeForces.size(); i++) {
-        out << "Node" << i + 1 << "=";
-        if (nodeForces[i].size() >= 2) {
-            out << nodeForces[i][0] << "," << nodeForces[i][1];
-        } else {
-            out << "0,0";
-        }
-        out << "\n";
+        out << "Node" << i + 1 << "=" << nodeForces[i] << "\n";
     }
     out << "\n";
 
     // Save bar forces
     out << "[BarForces]\n";
-    QVector<QVector<double>> barForces = sapr->getAllBarForces();
+    QVector<double> barForces = sapr->getAllBarForces();
     out << "Count=" << barForces.size() << "\n";
     for (int i = 0; i < barForces.size(); i++) {
-        out << "Bar" << i + 1 << "=";
-        if (barForces[i].size() >= 2) {
-            out << barForces[i][0] << "," << barForces[i][1];
-        } else {
-            out << "0,0";
-        }
-        out << "\n";
+        out << "Bar" << i + 1 << "=" << barForces[i] << "\n";
     }
 
     file.close();
@@ -101,8 +89,8 @@ bool FileHandler::loadProject(Sapr *sapr, const QString &fileName) {
     QMap<QString, QString> values;
 
     // Vectors to store loaded data
-    QVector<QVector<double>> loadedNodeForces;
-    QVector<QVector<double>> loadedBarForces;
+    QVector<double> loadedNodeForces;
+    QVector<double> loadedBarForces;
     bool anchorsLoaded = false;
     bool displayLoaded = false;
     bool barsLoaded = false;
@@ -139,14 +127,6 @@ bool FileHandler::loadProject(Sapr *sapr, const QString &fileName) {
                    displayLoaded, barsLoaded);
 
     file.close();
-    for (int i = 0; i < loadedNodeForces.size(); i++) {
-        if (loadedNodeForces[i].size() >= 2) {
-        }
-    }
-    for (int i = 0; i < loadedBarForces.size(); i++) {
-        if (loadedBarForces[i].size() >= 2) {
-        }
-    }
 
     // Apply the loaded forces
     if (!loadedNodeForces.isEmpty()) {
@@ -164,8 +144,8 @@ bool FileHandler::loadProject(Sapr *sapr, const QString &fileName) {
 
 // Add this helper method to process sections
 void FileHandler::processSection(const QString &section, const QMap<QString, QString> &values,
-                                 Sapr *sapr, QVector<QVector<double>> &loadedNodeForces,
-                                 QVector<QVector<double>> &loadedBarForces, bool &anchorsLoaded,
+                                 Sapr *sapr, QVector<double> &loadedNodeForces,
+                                 QVector<double> &loadedBarForces, bool &anchorsLoaded,
                                  bool &displayLoaded, bool &barsLoaded) {
     if (section == "Anchors" && !anchorsLoaded) {
         if (values.contains("Left"))
@@ -208,16 +188,12 @@ void FileHandler::processSection(const QString &section, const QMap<QString, QSt
         for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
             if (it.key().startsWith("Node") && it.key() != "Count") {
                 int nodeIndex = it.key().mid(4).toInt() - 1;
-                QStringList forceData = it.value().split(',');
-                if (nodeIndex >= 0 && forceData.size() >= 2) {
+                QString forceValue = it.value();
+                if (nodeIndex >= 0) {
                     if (nodeIndex >= loadedNodeForces.size()) {
                         loadedNodeForces.resize(nodeIndex + 1);
                     }
-                    QVector<double> forces;
-                    double hForce = forceData[0].toDouble();
-                    double vForce = forceData[1].toDouble();
-                    forces << hForce << vForce;
-                    loadedNodeForces[nodeIndex] = forces;
+                    loadedNodeForces[nodeIndex] = forceValue.toDouble();
                 }
             }
         }
@@ -225,17 +201,12 @@ void FileHandler::processSection(const QString &section, const QMap<QString, QSt
         for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
             if (it.key().startsWith("Bar") && it.key() != "Count") {
                 int barIndex = it.key().mid(3).toInt() - 1;
-                QStringList forceData = it.value().split(',');
-                if (barIndex >= 0 && forceData.size() >= 2) {
+                QString forceValue = it.value();
+                if (barIndex >= 0) {
                     if (barIndex >= loadedBarForces.size()) {
                         loadedBarForces.resize(barIndex + 1);
                     }
-                    QVector<double> forces;
-                    double hForce = forceData[0].toDouble();
-                    double vForce = forceData[1].toDouble();
-                    forces << hForce << vForce;
-                    // DON'T add empty markers here - they will be added in setBarForces
-                    loadedBarForces[barIndex] = forces;
+                    loadedBarForces[barIndex] = forceValue.toDouble();
                 }
             }
         }

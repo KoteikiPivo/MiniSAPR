@@ -9,8 +9,8 @@ class FileHandler {
     static bool saveProject(Sapr *sapr, const QString &fileName);
     static bool loadProject(Sapr *sapr, const QString &fileName);
     static void processSection(const QString &section, const QMap<QString, QString> &values,
-                               Sapr *sapr, QVector<QVector<double>> &loadedNodeForces,
-                               QVector<QVector<double>> &loadedBarForces, bool &anchorsLoaded,
+                               Sapr *sapr, QVector<double> &loadedNodeForces,
+                               QVector<double> &loadedBarForces, bool &anchorsLoaded,
                                bool &displayLoaded, bool &barsLoaded);
 };
 

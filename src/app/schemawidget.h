@@ -15,8 +15,8 @@ class SchemaWidget : public QWidget {
     explicit SchemaWidget(QWidget *parent = nullptr);
     void updateBars(const QVector<double> &lengths, const QVector<double> &surfaces,
                     bool leftAnchor, bool rightAnchor);
-    void updateNodeForces(const QVector<QVector<double>> &forces);
-    void updateBarForces(const QVector<QVector<double>> &forces);
+    void updateNodeForces(const QVector<double> &forces);
+    void updateBarForces(const QVector<double> &forces);
     void fitToView();
     void setScale(double scale);
     double getScale() const { return scale; }
@@ -71,23 +71,21 @@ class SchemaWidget : public QWidget {
     bool showNodeForces = true;
     bool showBarForces = true;
 
-    QVector<QVector<double>> nodeForces;
-    QVector<QVector<double>> barForces;
+    QVector<double> nodeForces;
+    QVector<double> barForces;
 
     void drawBar(QPainter &painter, double startX, double endX, double surface, int barNumber);
     void drawAnchor(QPainter &painter, double x, bool isLeft);
     void drawNodeNumbers(QPainter &painter, const QVector<double> &nodePositions);
     void drawCoordinateSystem(QPainter &painter);
     void drawNodeForces(QPainter &painter, const QVector<double> &nodePositions);
-    void drawForceArrow(QPainter &painter, double x, double y, double forceX, double forceY);
+    void drawForceArrow(QPainter &painter, double x, double y, double force);
     void drawSingleForceArrow(QPainter &painter, const QPointF &startPoint, const QPointF &endPoint,
                               const QColor &arrowColor, double arrowWidth, double headLength,
-                              double headWidth, double forceValue, bool isHorizontal);
+                              double headWidth, double forceValue);
     void drawBarForces(QPainter &painter, const QVector<double> &nodePositions);
     void drawHorizontalBarForce(QPainter &painter, double startX, double endX, double centerY,
                                 double force);
-    void drawVerticalBarForce(QPainter &painter, double startX, double endX, double centerY,
-                              double force, double surface);
 
     void updateScrollBar();
     double calculateMarkerInterval() const;

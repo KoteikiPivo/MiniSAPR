@@ -8,6 +8,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDebug>
+#include <QApplication>
 
 // Public getters for FileHandler
 bool Sapr::getLeftAnchor() const { return ui->checkBoxLeft->isChecked(); }
@@ -57,35 +58,9 @@ void Sapr::setBarProperties(int index, const QString &length, const QString &sur
     }
 }
 
-void Sapr::setNodeForces(const QVector<QVector<double>> &forces) {
-    savedNodeForces.clear();
-    for (const auto &force : forces) {
-        if (force.size() >= 2) {
-            QVector<double> formattedForce;
-            double hForce = force[0];
-            double vForce = force[1];
-            formattedForce << hForce << vForce;
-            // For file loading: always assume values are present (not empty)
-            formattedForce << 0.0 << 0.0; // Mark both as non-empty
-            savedNodeForces.append(formattedForce);
-        }
-    }
-}
+void Sapr::setNodeForces(const QVector<double> &forces) { savedNodeForces = forces; }
 
-void Sapr::setBarForces(const QVector<QVector<double>> &forces) {
-    savedBarForces.clear();
-    for (const auto &force : forces) {
-        if (force.size() >= 2) {
-            QVector<double> formattedForce;
-            double hForce = force[0];
-            double vForce = force[1];
-            formattedForce << hForce << vForce;
-            // For file loading: always assume values are present (not empty)
-            formattedForce << 0.0 << 0.0; // Mark both as non-empty
-            savedBarForces.append(formattedForce);
-        }
-    }
-}
+void Sapr::setBarForces(const QVector<double> &forces) { savedBarForces = forces; }
 
 Sapr::Sapr(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), barCount(0), headerNumber(nullptr),
@@ -349,6 +324,7 @@ void Sapr::on_DeleteButton_clicked() {
             }
         }
 
+        // If we get here, either shift was pressed or user confirmed
         removeBar(index);
     }
 }
@@ -449,8 +425,7 @@ void Sapr::removeBar(int index) {
             nodeForcesNodeLabels.clear();
             nodeForcesStartLabels.clear();
             nodeForcesEndLabels.clear();
-            nodeForcesHEdits.clear();
-            nodeForcesVEdits.clear();
+            nodeForcesEdits.clear();
         }
 
         // Clear bar forces headers and widgets
@@ -466,8 +441,7 @@ void Sapr::removeBar(int index) {
 
             // Clear the vectors
             barForcesBarLabels.clear();
-            barForcesHEdits.clear();
-            barForcesVEdits.clear();
+            barForcesEdits.clear();
         }
     } else {
         QLayoutItem *child;
@@ -506,16 +480,11 @@ void Sapr::removeBar(int index) {
     }
 
     // Clear the forces at the nodes of the deleted bar
-    // When removing bar at index, we clear nodes at index and index+1
     if (index < savedNodeForces.size()) {
-        // Clear the node at the start of the deleted bar
-        savedNodeForces[index] = QVector<double>()
-                                 << 0.0 << 0.0 << 1.0 << 1.0; // Mark both as empty
+        savedNodeForces[index] = 0.0;
     }
     if (index + 1 < savedNodeForces.size()) {
-        // Clear the node at the end of the deleted bar
-        savedNodeForces[index + 1] = QVector<double>()
-                                     << 0.0 << 0.0 << 1.0 << 1.0; // Mark both as empty
+        savedNodeForces[index + 1] = 0.0;
     }
 
     // For bar forces, remove the bar force at the deleted index
@@ -553,22 +522,20 @@ void Sapr::setupNodeForcesHeaders() {
     QLabel *nodeHeader = new QLabel("Узел");
     QLabel *startOfHeader = new QLabel("Начало стержня");
     QLabel *endOfHeader = new QLabel("Конец стержня");
-    QLabel *horizontalHeader = new QLabel("Fx");
-    QLabel *verticalHeader = new QLabel("Fy");
+    QLabel *forceHeader = new QLabel("Сила Fx");
 
     nodeHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     startOfHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     endOfHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    horizontalHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    verticalHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    forceHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     // Add headers to grid
     nodeForcesGrid->addWidget(nodeHeader, 0, 0);
-    nodeForcesGrid->addWidget(endOfHeader, 0, 1);
-    nodeForcesGrid->addWidget(startOfHeader, 0, 2);
-    nodeForcesGrid->addWidget(horizontalHeader, 0, 3);
-    nodeForcesGrid->addWidget(verticalHeader, 0, 4);
+    nodeForcesGrid->addWidget(startOfHeader, 0, 1);
+    nodeForcesGrid->addWidget(endOfHeader, 0, 2);
+    nodeForcesGrid->addWidget(forceHeader, 0, 3);
 }
+
 void Sapr::updateNodeForces(bool skipSave) {
     // Safety check
     if (!nodeForcesGrid)
@@ -590,11 +557,7 @@ void Sapr::updateNodeForces(bool skipSave) {
         if (endLabel)
             delete endLabel;
     }
-    for (auto edit : nodeForcesHEdits) {
-        if (edit)
-            delete edit;
-    }
-    for (auto edit : nodeForcesVEdits) {
+    for (auto edit : nodeForcesEdits) {
         if (edit)
             delete edit;
     }
@@ -602,8 +565,7 @@ void Sapr::updateNodeForces(bool skipSave) {
     nodeForcesNodeLabels.clear();
     nodeForcesStartLabels.clear();
     nodeForcesEndLabels.clear();
-    nodeForcesHEdits.clear();
-    nodeForcesVEdits.clear();
+    nodeForcesEdits.clear();
 
     // If no bars, clear everything except headers and return
     if (barCount == 0) {
@@ -656,40 +618,32 @@ void Sapr::updateNodeForces(bool skipSave) {
             endLabel->setText("—"); // First node doesn't end any bar
         }
 
-        // Force input fields with validators
-        QLineEdit *hEdit = new QLineEdit();
-        QLineEdit *vEdit = new QLineEdit();
+        // Force input field with validator
+        QLineEdit *forceEdit = new QLineEdit();
 
         nodeLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         startLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         endLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        hEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        vEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        forceEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-        // Set up validators and placeholders
-        QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, hEdit);
-        hEdit->setValidator(validator);
-        vEdit->setValidator(new QDoubleValidator(-100000.0, 100000.0, 3, vEdit));
-
-        hEdit->setPlaceholderText("Н");
-        vEdit->setPlaceholderText("Н");
+        // Set up validator and placeholder
+        QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, forceEdit);
+        forceEdit->setValidator(validator);
+        forceEdit->setPlaceholderText("Н");
 
         // Connect the input changes to update the schema
-        connect(hEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
-        connect(vEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
+        connect(forceEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
 
         // Store references
         nodeForcesStartLabels.append(startLabel);
         nodeForcesEndLabels.append(endLabel);
-        nodeForcesHEdits.append(hEdit);
-        nodeForcesVEdits.append(vEdit);
+        nodeForcesEdits.append(forceEdit);
 
         // Add to grid
         nodeForcesGrid->addWidget(nodeLabel, row, 0);
-        nodeForcesGrid->addWidget(endLabel, row, 1);
-        nodeForcesGrid->addWidget(startLabel, row, 2);
-        nodeForcesGrid->addWidget(hEdit, row, 3);
-        nodeForcesGrid->addWidget(vEdit, row, 4);
+        nodeForcesGrid->addWidget(startLabel, row, 1);
+        nodeForcesGrid->addWidget(endLabel, row, 2);
+        nodeForcesGrid->addWidget(forceEdit, row, 3);
     }
 }
 
@@ -713,17 +667,14 @@ void Sapr::setupBarForcesHeaders() {
 
     // Add headers for BarForces tab
     QLabel *barHeader = new QLabel("Стержень");
-    QLabel *horizontalHeader = new QLabel("Fx");
-    QLabel *verticalHeader = new QLabel("Fy");
+    QLabel *forceHeader = new QLabel("Сила Fx");
 
     barHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    horizontalHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    verticalHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    forceHeader->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     // Add headers to grid
     barForcesGrid->addWidget(barHeader, 0, 0);
-    barForcesGrid->addWidget(horizontalHeader, 0, 1);
-    barForcesGrid->addWidget(verticalHeader, 0, 2);
+    barForcesGrid->addWidget(forceHeader, 0, 1);
 }
 
 void Sapr::updateBarForces(bool skipSave) {
@@ -739,18 +690,13 @@ void Sapr::updateBarForces(bool skipSave) {
         if (label)
             delete label;
     }
-    for (auto edit : barForcesHEdits) {
-        if (edit)
-            delete edit;
-    }
-    for (auto edit : barForcesVEdits) {
+    for (auto edit : barForcesEdits) {
         if (edit)
             delete edit;
     }
 
     barForcesBarLabels.clear();
-    barForcesHEdits.clear();
-    barForcesVEdits.clear();
+    barForcesEdits.clear();
 
     // If no bars, clear everything except headers and return
     if (barCount == 0) {
@@ -786,33 +732,25 @@ void Sapr::updateBarForces(bool skipSave) {
         QLabel *barLabel = new QLabel(QString("%1").arg(i + 1));
         barForcesBarLabels.append(barLabel);
 
-        // Force input fields with validators
-        QLineEdit *hEdit = new QLineEdit();
-        QLineEdit *vEdit = new QLineEdit();
+        // Force input field with validator
+        QLineEdit *forceEdit = new QLineEdit();
 
         barLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        hEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        vEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        forceEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-        // Set up validators and placeholders
-        QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, hEdit);
-        hEdit->setValidator(validator);
-        vEdit->setValidator(new QDoubleValidator(-100000.0, 100000.0, 3, vEdit));
+        // Set up validator and placeholder
+        QDoubleValidator *validator = new QDoubleValidator(-100000.0, 100000.0, 3, forceEdit);
+        forceEdit->setValidator(validator);
+        forceEdit->setPlaceholderText("Н/м");
 
-        hEdit->setPlaceholderText("Н/м");
-        vEdit->setPlaceholderText("Н/м");
-
-        connect(hEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
-        connect(vEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
+        connect(forceEdit, &QLineEdit::textChanged, this, &Sapr::updateSchemaData);
 
         // Store references
-        barForcesHEdits.append(hEdit);
-        barForcesVEdits.append(vEdit);
+        barForcesEdits.append(forceEdit);
 
         // Add to grid
         barForcesGrid->addWidget(barLabel, row, 0);
-        barForcesGrid->addWidget(hEdit, row, 1);
-        barForcesGrid->addWidget(vEdit, row, 2);
+        barForcesGrid->addWidget(forceEdit, row, 1);
     }
 
     loadBarForces();
@@ -841,8 +779,8 @@ void Sapr::updateSchemaData() {
         surfaces.append(surface);
     }
 
-    QVector<QVector<double>> nodeForces = getAllNodeForces();
-    QVector<QVector<double>> barForces = getAllBarForces();
+    QVector<double> nodeForces = getAllNodeForces();
+    QVector<double> barForces = getAllBarForces();
 
     schemaWidget->updateNodeForces(nodeForces);
     schemaWidget->updateBarForces(barForces);
@@ -852,44 +790,34 @@ void Sapr::updateSchemaData() {
 }
 
 // Helper method to get node force values
-QVector<double> Sapr::getNodeForces(int nodeIndex) {
-    QVector<double> forces;
-
-    if (nodeIndex >= 0 && nodeIndex < nodeForcesHEdits.size()) {
-        double hForce = nodeForcesHEdits[nodeIndex]->text().toDouble();
-        double vForce = nodeForcesVEdits[nodeIndex]->text().toDouble();
-        forces << hForce << vForce;
+double Sapr::getNodeForces(int nodeIndex) {
+    if (nodeIndex >= 0 && nodeIndex < nodeForcesEdits.size()) {
+        return nodeForcesEdits[nodeIndex]->text().toDouble();
     }
-
-    return forces;
+    return 0.0;
 }
 
 // Get all node forces as a list
-QVector<QVector<double>> Sapr::getAllNodeForces() {
-    QVector<QVector<double>> allForces;
-    for (int i = 0; i < nodeForcesHEdits.size(); i++) {
+QVector<double> Sapr::getAllNodeForces() {
+    QVector<double> allForces;
+    for (int i = 0; i < nodeForcesEdits.size(); i++) {
         allForces.append(getNodeForces(i));
     }
     return allForces;
 }
 
 // Helper method to get bar force values
-QVector<double> Sapr::getBarForces(int barIndex) {
-    QVector<double> forces;
-
-    if (barIndex >= 0 && barIndex < barForcesHEdits.size()) {
-        double hForce = barForcesHEdits[barIndex]->text().toDouble();
-        double vForce = barForcesVEdits[barIndex]->text().toDouble();
-        forces << hForce << vForce;
+double Sapr::getBarForces(int barIndex) {
+    if (barIndex >= 0 && barIndex < barForcesEdits.size()) {
+        return barForcesEdits[barIndex]->text().toDouble();
     }
-
-    return forces;
+    return 0.0;
 }
 
 // Get all bar forces as a list
-QVector<QVector<double>> Sapr::getAllBarForces() {
-    QVector<QVector<double>> allForces;
-    for (int i = 0; i < barForcesHEdits.size(); i++) {
+QVector<double> Sapr::getAllBarForces() {
+    QVector<double> allForces;
+    for (int i = 0; i < barForcesEdits.size(); i++) {
         allForces.append(getBarForces(i));
     }
     return allForces;
@@ -897,162 +825,55 @@ QVector<QVector<double>> Sapr::getAllBarForces() {
 
 void Sapr::saveNodeForces() {
     savedNodeForces.clear();
-    for (int i = 0; i < nodeForcesHEdits.size(); i++) {
-        QVector<double> forces;
-        if (i < nodeForcesHEdits.size() && nodeForcesHEdits[i]) {
-            QString hText = nodeForcesHEdits[i]->text();
-            if (!hText.isEmpty()) {
-                forces << hText.toDouble();
-            } else {
-                forces << 0.0; // Use a special marker for empty values
+    for (int i = 0; i < nodeForcesEdits.size(); i++) {
+        double force = 0.0;
+
+        if (i < nodeForcesEdits.size() && nodeForcesEdits[i]) {
+            QString text = nodeForcesEdits[i]->text();
+            if (!text.isEmpty()) {
+                force = text.toDouble();
             }
-        } else {
-            forces << 0.0;
         }
 
-        if (i < nodeForcesVEdits.size() && nodeForcesVEdits[i]) {
-            QString vText = nodeForcesVEdits[i]->text();
-            if (!vText.isEmpty()) {
-                forces << vText.toDouble();
-            } else {
-                forces << 0.0; // Use a special marker for empty values
-            }
-        } else {
-            forces << 0.0;
-        }
-
-        // Add a flag to indicate which values were originally empty
-        bool hWasEmpty = (i < nodeForcesHEdits.size() && nodeForcesHEdits[i] &&
-                          nodeForcesHEdits[i]->text().isEmpty());
-        bool vWasEmpty = (i < nodeForcesVEdits.size() && nodeForcesVEdits[i] &&
-                          nodeForcesVEdits[i]->text().isEmpty());
-        forces << (hWasEmpty ? 1.0 : 0.0); // Use 1.0 to mark empty horizontal force
-        forces << (vWasEmpty ? 1.0 : 0.0); // Use 1.0 to mark empty vertical force
-
-        savedNodeForces.append(forces);
+        savedNodeForces.append(force);
     }
 }
-/*
+
 void Sapr::loadNodeForces() {
-    for (int i = 0; i < nodeForcesHEdits.size() && i < savedNodeForces.size(); i++) {
-        if (nodeForcesHEdits[i] && savedNodeForces[i].size() >= 3) {
-            if (savedNodeForces[i][2] == 1.0) { // Was originally empty
-                nodeForcesHEdits[i]->setText("");
+    for (int i = 0; i < nodeForcesEdits.size() && i < savedNodeForces.size(); i++) {
+        if (nodeForcesEdits[i]) {
+            if (savedNodeForces[i] != 0.0) {
+                nodeForcesEdits[i]->setText(QString::number(savedNodeForces[i], 'f', 3));
             } else {
-                nodeForcesHEdits[i]->setText(QString::number(savedNodeForces[i][0], 'f', 3));
-            }
-        }
-        if (nodeForcesVEdits[i] && savedNodeForces[i].size() >= 4) {
-            if (savedNodeForces[i][3] == 1.0) { // Was originally empty
-                nodeForcesVEdits[i]->setText("");
-            } else {
-                nodeForcesVEdits[i]->setText(QString::number(savedNodeForces[i][1], 'f', 3));
+                nodeForcesEdits[i]->setText("");
             }
         }
     }
 }
-*/
 
 void Sapr::saveBarForces() {
     savedBarForces.clear();
-    for (int i = 0; i < barForcesHEdits.size(); i++) {
-        QVector<double> forces;
-        if (i < barForcesHEdits.size() && barForcesHEdits[i]) {
-            QString hText = barForcesHEdits[i]->text();
-            if (!hText.isEmpty()) {
-                forces << hText.toDouble();
-            } else {
-                forces << 0.0;
+    for (int i = 0; i < barForcesEdits.size(); i++) {
+        double force = 0.0;
+
+        if (i < barForcesEdits.size() && barForcesEdits[i]) {
+            QString text = barForcesEdits[i]->text();
+            if (!text.isEmpty()) {
+                force = text.toDouble();
             }
-        } else {
-            forces << 0.0;
         }
 
-        if (i < barForcesVEdits.size() && barForcesVEdits[i]) {
-            QString vText = barForcesVEdits[i]->text();
-            if (!vText.isEmpty()) {
-                forces << vText.toDouble();
-            } else {
-                forces << 0.0;
-            }
-        } else {
-            forces << 0.0;
-        }
-
-        // Add flags for empty values
-        bool hWasEmpty = (i < barForcesHEdits.size() && barForcesHEdits[i] &&
-                          barForcesHEdits[i]->text().isEmpty());
-        bool vWasEmpty = (i < barForcesVEdits.size() && barForcesVEdits[i] &&
-                          barForcesVEdits[i]->text().isEmpty());
-        forces << (hWasEmpty ? 1.0 : 0.0);
-        forces << (vWasEmpty ? 1.0 : 0.0);
-
-        savedBarForces.append(forces);
-    }
-}
-
-/*
-void Sapr::loadBarForces() {
-    for (int i = 0; i < barForcesHEdits.size() && i < savedBarForces.size(); i++) {
-        if (barForcesHEdits[i] && savedBarForces[i].size() >= 3) {
-            if (savedBarForces[i][2] == 1.0) {
-                barForcesHEdits[i]->setText("");
-            } else {
-                barForcesHEdits[i]->setText(QString::number(savedBarForces[i][0], 'f', 3));
-            }
-        }
-        if (barForcesVEdits[i] && savedBarForces[i].size() >= 4) {
-            if (savedBarForces[i][3] == 1.0) {
-                barForcesVEdits[i]->setText("");
-            } else {
-                barForcesVEdits[i]->setText(QString::number(savedBarForces[i][1], 'f', 3));
-            }
-        }
-    }
-}
-*/
-
-void Sapr::loadNodeForces() {
-    for (int i = 0; i < nodeForcesHEdits.size() && i < savedNodeForces.size(); i++) {
-        if (nodeForcesHEdits[i] && savedNodeForces[i].size() >= 4) {
-            // Only set text if the empty marker is 0.0 (not empty)
-            if (savedNodeForces[i][2] == 0.0) {
-                QString hValue = QString::number(savedNodeForces[i][0], 'f', 3);
-                nodeForcesHEdits[i]->setText(hValue);
-            } else {
-                nodeForcesHEdits[i]->setText("");
-            }
-        }
-        if (nodeForcesVEdits[i] && savedNodeForces[i].size() >= 4) {
-            // Only set text if the empty marker is 0.0 (not empty)
-            if (savedNodeForces[i][3] == 0.0) {
-                QString vValue = QString::number(savedNodeForces[i][1], 'f', 3);
-                nodeForcesVEdits[i]->setText(vValue);
-            } else {
-                nodeForcesVEdits[i]->setText("");
-            }
-        }
+        savedBarForces.append(force);
     }
 }
 
 void Sapr::loadBarForces() {
-    for (int i = 0; i < barForcesHEdits.size() && i < savedBarForces.size(); i++) {
-        if (barForcesHEdits[i] && savedBarForces[i].size() >= 4) {
-            // Only set text if the empty marker is 0.0 (not empty)
-            if (savedBarForces[i][2] == 0.0) {
-                QString hValue = QString::number(savedBarForces[i][0], 'f', 3);
-                barForcesHEdits[i]->setText(hValue);
+    for (int i = 0; i < barForcesEdits.size() && i < savedBarForces.size(); i++) {
+        if (barForcesEdits[i]) {
+            if (savedBarForces[i] != 0.0) {
+                barForcesEdits[i]->setText(QString::number(savedBarForces[i], 'f', 3));
             } else {
-                barForcesHEdits[i]->setText("");
-            }
-        }
-        if (barForcesVEdits[i] && savedBarForces[i].size() >= 4) {
-            // Only set text if the empty marker is 0.0 (not empty)
-            if (savedBarForces[i][3] == 0.0) {
-                QString vValue = QString::number(savedBarForces[i][1], 'f', 3);
-                barForcesVEdits[i]->setText(vValue);
-            } else {
-                barForcesVEdits[i]->setText("");
+                barForcesEdits[i]->setText("");
             }
         }
     }

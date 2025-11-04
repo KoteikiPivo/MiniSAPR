@@ -111,16 +111,15 @@ void SchemaWidget::updateBars(const QVector<double> &lengths, const QVector<doub
     hasRightAnchor = rightAnchor;
 
     fitToView();
-    updateScrollBar();
     update();
 }
 
-void SchemaWidget::updateNodeForces(const QVector<QVector<double>> &forces) {
+void SchemaWidget::updateNodeForces(const QVector<double> &forces) {
     nodeForces = forces;
     update();
 }
 
-void SchemaWidget::updateBarForces(const QVector<QVector<double>> &forces) {
+void SchemaWidget::updateBarForces(const QVector<double> &forces) {
     barForces = forces;
     update();
 }
@@ -417,10 +416,6 @@ void SchemaWidget::drawBar(QPainter &painter, double startX, double endX, double
         // Draw bar number enclosed in a square
         QString numberText = QString::number(barNumber);
 
-        QFont font = painter.font();
-        font.setBold(true);
-        painter.setFont(font);
-
         // Calculate text size to determine square size
         QFontMetrics metrics(painter.font());
         QRect textRect = metrics.boundingRect(numberText);
@@ -431,7 +426,7 @@ void SchemaWidget::drawBar(QPainter &painter, double startX, double endX, double
         double squareY = barRect.center().y() - squareSize / 2;
 
         // Draw white square with black border
-        painter.setBrush(QBrush(Qt::black));
+        painter.setBrush(QBrush(Qt::transparent));
         painter.setPen(QPen(Qt::magenta, 2));
         painter.drawRect(QRectF(squareX, squareY, squareSize, squareSize));
 
@@ -439,9 +434,6 @@ void SchemaWidget::drawBar(QPainter &painter, double startX, double endX, double
         painter.setPen(Qt::magenta);
         painter.drawText(QRectF(squareX, squareY, squareSize, squareSize), Qt::AlignCenter,
                          numberText);
-
-        font.setBold(false);
-        painter.setFont(font);
     }
 
     // Draw surface value
@@ -539,19 +531,15 @@ void SchemaWidget::drawNodeForces(QPainter &painter, const QVector<double> &node
 
     for (int i = 0; i < nodePositions.size() && i < nodeForces.size(); i++) {
         double nodeX = nodePositions[i];
-        const QVector<double> &forces = nodeForces[i];
+        double force = nodeForces[i];
 
-        if (forces.size() >= 2) {
-            double forceX = forces[0];
-            double forceY = forces[1];
-
-            drawForceArrow(painter, nodeX, centerY, forceX, forceY);
+        if (force != 0) {
+            drawForceArrow(painter, nodeX, centerY, force);
         }
     }
 }
 
-void SchemaWidget::drawForceArrow(QPainter &painter, double x, double y, double forceX,
-                                  double forceY) {
+void SchemaWidget::drawForceArrow(QPainter &painter, double x, double y, double force) {
     // Arrow parameters
     double arrowLength = 40.0; // Base length in pixels
     double arrowWidth = 6.0;   // Width of the arrow shaft
@@ -559,38 +547,24 @@ void SchemaWidget::drawForceArrow(QPainter &painter, double x, double y, double 
     double headWidth = 16.0;   // Width of arrow head
 
     // Draw horizontal force arrow
-    if (forceX != 0) {
-        double dirX = (forceX > 0) ? 1.0 : -1.0;
+    if (force != 0) {
+        double dirX = (force > 0) ? 1.0 : -1.0;
         double currentArrowLength = arrowLength;
 
-        QColor arrowColor = (forceX > 0) ? QColor(255, 100, 100) : QColor(100, 100, 255);
+        QColor arrowColor = (force > 0) ? QColor(255, 100, 100) : QColor(100, 100, 255);
 
         // Calculate arrow end points for horizontal arrow
         QPointF startPoint(x, y);
         QPointF endPoint(x + dirX * currentArrowLength, y);
         drawSingleForceArrow(painter, startPoint, endPoint, arrowColor, arrowWidth, headLength,
-                             headWidth, forceX, true);
-    }
-
-    // Draw vertical force arrow
-    if (forceY != 0) {
-        double dirY = (forceY < 0) ? 1.0 : -1.0;
-        double currentArrowLength = arrowLength;
-
-        QColor arrowColor = (forceY > 0) ? QColor(255, 100, 100) : QColor(100, 100, 255);
-
-        // Calculate arrow end points for vertical arrow
-        QPointF startPoint(x, y);
-        QPointF endPoint(x, y + dirY * currentArrowLength);
-        drawSingleForceArrow(painter, startPoint, endPoint, arrowColor, arrowWidth, headLength,
-                             headWidth, forceY, false);
+                             headWidth, force);
     }
 }
 
 void SchemaWidget::drawSingleForceArrow(QPainter &painter, const QPointF &startPoint,
                                         const QPointF &endPoint, const QColor &arrowColor,
                                         double arrowWidth, double headLength, double headWidth,
-                                        double forceValue, bool isHorizontal) {
+                                        double forceValue) {
     painter.setBrush(QBrush(arrowColor));
     painter.setPen(QPen(arrowColor, 1));
 
@@ -648,20 +622,14 @@ void SchemaWidget::drawSingleForceArrow(QPainter &painter, const QPointF &startP
 
     // Position label based on arrow direction
     QPointF labelOffset;
-    if (isHorizontal) {
-        labelOffset = (forceValue > 0) ? QPointF(5, -15) : QPointF(-65, -15);
-    } else {
-        labelOffset = (forceValue > 0) ? QPointF(5, -10) : QPointF(5, 0);
-    }
+    labelOffset = (forceValue > 0) ? QPointF(5, -15) : QPointF(-65, -15);
 
     QString forceText = QString("%1").arg(forceValue, 0, 'f', 2);
     QRectF textRect(endPoint.x() + labelOffset.x(), endPoint.y() + labelOffset.y(), 60, 15);
 
     // Adjust text alignment based on force direction
     Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter;
-    if (!isHorizontal && forceValue < 0) {
-        alignment = Qt::AlignLeft | Qt::AlignTop;
-    } else if (isHorizontal && forceValue < 0) {
+    if (forceValue < 0) {
         alignment = Qt::AlignRight | Qt::AlignVCenter;
     }
 
@@ -683,28 +651,13 @@ void SchemaWidget::drawBarForces(QPainter &painter, const QVector<double> &nodeP
     painter.setRenderHint(QPainter::Antialiasing);
 
     for (int i = 0; i < barForces.size() && i < nodePositions.size() - 1; i++) {
-        const QVector<double> &forces = barForces[i];
+        double force = barForces[i];
+        double startX = nodePositions[i];
+        double endX = nodePositions[i + 1];
 
-        if (forces.size() >= 2) {
-            double forceX = forces[0];
-            double forceY = forces[1];
-            double startX = nodePositions[i];
-            double endX = nodePositions[i + 1];
-
-            // Draw horizontal force if significant
-            if (forceX != 0) {
-                drawHorizontalBarForce(painter, startX, endX, centerY, forceX);
-            }
-
-            double surface = 1.0;
-            if (i < barSurfaces.size()) {
-                surface = barSurfaces[i];
-            }
-
-            // Draw vertical force if significant
-            if (forceY != 0) {
-                drawVerticalBarForce(painter, startX, endX, centerY, forceY, surface);
-            }
+        // Draw horizontal force if significant
+        if (force != 0) {
+            drawHorizontalBarForce(painter, startX, endX, centerY, force);
         }
     }
 }
@@ -782,9 +735,9 @@ void SchemaWidget::drawHorizontalBarForce(QPainter &painter, double startX, doub
     // Determine label position based on force direction
     QPointF labelPos;
     if (force > 0) {
-        labelPos = QPointF(centerX - 10, centerY - boxHeight / 2 + 30);
+        labelPos = QPointF(centerX - 10, centerY - boxHeight / 2 - 30);
     } else {
-        labelPos = QPointF(centerX - boxWidth - 5, centerY - boxHeight / 2 + 30);
+        labelPos = QPointF(centerX - boxWidth - 5, centerY - boxHeight / 2 - 30);
     }
 
     // Draw black-filled box with colored border
@@ -796,113 +749,6 @@ void SchemaWidget::drawHorizontalBarForce(QPainter &painter, double startX, doub
     // Draw text in white inside the box
     painter.setPen(arrowColor);
     painter.drawText(boxRect, Qt::AlignCenter, forceText);
-
-    font.setBold(false);
-    font.setPointSize(9);
-    painter.setFont(font);
-}
-
-void SchemaWidget::drawVerticalBarForce(QPainter &painter, double startX, double endX,
-                                        double centerY, double force, double surface) {
-    // Parameters for the distributed load visualization
-    double loadHeight = 35.0; // Increased height for better visibility
-    double arrowLength = 12.0;
-    double arrowWidth = 3.0;
-    double headLength = 5.0;
-    double headWidth = 7.0;
-
-    // Calculate actual bar thickness based on surface
-    double maxSurface = getMaxSurface();
-    double normalizedSurface = surface / maxSurface;
-    int barThickness = qMax(10, static_cast<int>(normalizedSurface * 100));
-
-    QColor arrowColor = (force > 0) ? QColor(255, 100, 100) : QColor(100, 100, 255);
-    painter.setBrush(QBrush(arrowColor));
-    painter.setPen(QPen(arrowColor, 1));
-
-    // Determine if force is upward (positive) or downward (negative)
-    bool isUpward = (force > 0);
-    double loadY, barTop, barBottom;
-
-    // Calculate bar top and bottom based on actual bar thickness
-    barTop = centerY - barThickness / 2;
-    barBottom = centerY + barThickness / 2;
-
-    if (isUpward) {
-        // Upward force - arrows point up from below the bar
-        loadY = barBottom + loadHeight; // Load applied below the bar
-    } else {
-        // Downward force - arrows point down from above the bar
-        loadY = barTop - loadHeight; // Load applied above the bar
-    }
-
-    // Draw the horizontal load line
-    painter.drawLine(QPointF(startX, loadY), QPointF(endX, loadY));
-
-    // Draw vertical connection lines at both ends - connect to top/bottom of bar
-    if (isUpward) {
-        // Upward force - connect to bottom of bar
-        painter.drawLine(QPointF(startX, barBottom), QPointF(startX, loadY));
-        painter.drawLine(QPointF(endX, barBottom), QPointF(endX, loadY));
-    } else {
-        // Downward force - connect to top of bar
-        painter.drawLine(QPointF(startX, barTop), QPointF(startX, loadY));
-        painter.drawLine(QPointF(endX, barTop), QPointF(endX, loadY));
-    }
-
-    // Draw vertical arrows pointing toward the bar
-    double barLength = endX - startX;
-    int numArrows =
-        qMax(2, static_cast<int>(barLength / 25)); // Adjust arrow density based on bar length
-
-    for (int i = 0; i < numArrows; i++) {
-        double t = (i + 0.5) / numArrows; // Position along the bar (0 to 1)
-        double arrowX = startX + t * barLength;
-
-        // Determine arrow direction (vertical, pointing toward the bar)
-        QPointF arrowStart, arrowEnd;
-        if (isUpward) {
-            // Upward arrows - start at load line, end pointing toward bar bottom
-            arrowStart = QPointF(arrowX, loadY);
-            arrowEnd = QPointF(arrowX, loadY - arrowLength);
-        } else {
-            // Downward arrows - start at load line, end pointing toward bar top
-            arrowStart = QPointF(arrowX, loadY);
-            arrowEnd = QPointF(arrowX, loadY + arrowLength);
-        }
-
-        // Draw arrow shaft
-        painter.drawLine(arrowStart, arrowEnd);
-
-        // Draw arrow head
-        QLineF arrowLine(arrowStart, arrowEnd);
-        QLineF perpendicular = arrowLine.normalVector();
-        perpendicular.setLength(headWidth / 2.0);
-
-        // Calculate head base
-        QLineF directionLine(arrowStart, arrowEnd);
-        directionLine.setLength(headLength);
-        QPointF headBase = arrowEnd - directionLine.p2() + directionLine.p1();
-
-        QPointF headPoint1 = headBase + perpendicular.p2() - perpendicular.p1();
-        QPointF headPoint2 = headBase - (perpendicular.p2() - perpendicular.p1());
-
-        QPolygonF head;
-        head << arrowEnd << headPoint1 << headPoint2;
-        painter.drawPolygon(head);
-    }
-
-    // Draw force label
-    painter.setPen(arrowColor);
-    QFont font = painter.font();
-    font.setPointSize(10);
-    font.setBold(true);
-    painter.setFont(font);
-
-    QString forceText = QString("%1").arg(qAbs(force), 0, 'f', 2);
-    QPointF labelPos = (isUpward) ? QPointF((startX + endX) / 2 - 25, loadY + 5)
-                                  : QPointF((startX + endX) / 2 - 25, loadY - 20);
-    painter.drawText(QRectF(labelPos.x(), labelPos.y(), 60, 15), Qt::AlignCenter, forceText);
 
     font.setBold(false);
     font.setPointSize(9);
