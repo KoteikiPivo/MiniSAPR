@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1117</width>
-    <height>682</height>
+    <width>980</width>
+    <height>648</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -23,6 +23,12 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="minimumSize">
+       <size>
+        <width>300</width>
+        <height>0</height>
+       </size>
+      </property>
       <property name="widgetResizable">
        <bool>true</bool>
       </property>
@@ -31,8 +37,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>436</width>
-         <height>613</height>
+         <width>381</width>
+         <height>581</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -138,7 +144,7 @@
            </size>
           </property>
           <property name="title">
-           <string>Силы</string>
+           <string>Нагрузки</string>
           </property>
           <layout class="QVBoxLayout" name="verticalLayout_4">
            <property name="sizeConstraint">
@@ -154,7 +160,7 @@
                <bool>true</bool>
               </property>
               <attribute name="title">
-               <string>Точечные</string>
+               <string>Сосредоточенные</string>
               </attribute>
              </widget>
              <widget class="QWidget" name="BarForces">
@@ -162,7 +168,7 @@
                <bool>true</bool>
               </property>
               <attribute name="title">
-               <string>Продольные</string>
+               <string>Распределенные</string>
               </attribute>
              </widget>
             </widget>
@@ -200,8 +206,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1117</width>
-     <height>30</height>
+     <width>980</width>
+     <height>29</height>
     </rect>
    </property>
    <property name="defaultUp">
@@ -225,7 +231,7 @@
   </action>
   <action name="action_2">
    <property name="text">
-    <string>Сохранить</string>
+    <string>Сохранить как</string>
    </property>
   </action>
   <action name="action_3">

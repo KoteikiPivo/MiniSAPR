@@ -1,5 +1,5 @@
-/home/sqbe/progs/uni/sapr/src/app/mini_sapr_autogen/EWIEGA46WW/moc_schemawidget.cpp: /home/sqbe/progs/uni/sapr/src/app/schemawidget.h \
-  /home/sqbe/progs/uni/sapr/src/app/mini_sapr_autogen/moc_predefs.h \
+/home/sqbe/MiniSAPR/src/app/mini_sapr_autogen/EWIEGA46WW/moc_schemawidget.cpp: /home/sqbe/MiniSAPR/src/app/schemawidget.h \
+  /home/sqbe/MiniSAPR/src/app/mini_sapr_autogen/moc_predefs.h \
   /usr/include/alloca.h \
   /usr/include/asm-generic/bitsperlong.h \
   /usr/include/asm-generic/errno-base.h \

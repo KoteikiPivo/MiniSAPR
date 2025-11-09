@@ -1,13 +1,13 @@
 mini_sapr_autogen/timestamp: \
-	/home/sqbe/progs/uni/sapr/src/app/CMakeLists.txt \
-	/home/sqbe/progs/uni/sapr/src/app/filehandler.cpp \
-	/home/sqbe/progs/uni/sapr/src/app/filehandler.h \
-	/home/sqbe/progs/uni/sapr/src/app/main.cpp \
-	/home/sqbe/progs/uni/sapr/src/app/mini_sapr_autogen/moc_predefs.h \
-	/home/sqbe/progs/uni/sapr/src/app/sapr.cpp \
-	/home/sqbe/progs/uni/sapr/src/app/sapr.h \
-	/home/sqbe/progs/uni/sapr/src/app/schemawidget.cpp \
-	/home/sqbe/progs/uni/sapr/src/app/schemawidget.h \
+	/home/sqbe/MiniSAPR/src/app/CMakeLists.txt \
+	/home/sqbe/MiniSAPR/src/app/filehandler.cpp \
+	/home/sqbe/MiniSAPR/src/app/filehandler.h \
+	/home/sqbe/MiniSAPR/src/app/main.cpp \
+	/home/sqbe/MiniSAPR/src/app/mini_sapr_autogen/moc_predefs.h \
+	/home/sqbe/MiniSAPR/src/app/sapr.cpp \
+	/home/sqbe/MiniSAPR/src/app/sapr.h \
+	/home/sqbe/MiniSAPR/src/app/schemawidget.cpp \
+	/home/sqbe/MiniSAPR/src/app/schemawidget.h \
 	/usr/include/alloca.h \
 	/usr/include/asm-generic/bitsperlong.h \
 	/usr/include/asm-generic/errno-base.h \
@@ -482,5 +482,5 @@ mini_sapr_autogen/timestamp: \
 	/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/stdarg.h \
 	/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/stdbool.h \
 	/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include/stddef.h \
-	/home/sqbe/progs/uni/sapr/src/app/sapr.ui \
-	/usr/bin/cmake
+	/home/sqbe/MiniSAPR/src/app/sapr.ui \
+	/sbin/cmake

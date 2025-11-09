@@ -1,9 +1,9 @@
 # SAPR Project File
-# Generated on 2025-11-05 00:09:17
+# Generated on 2025-11-05 16:29:00
 
 [Anchors]
 Left=true
-Right=false
+Right=true
 
 [Display]
 NodeNumbers=true
@@ -13,17 +13,23 @@ NodeForces=true
 BarForces=true
 
 [Bars]
-Count=2
-Bar1=1,2,,
-Bar2=2,2,,
+Count=4
+Bar1=1,1,1,1
+Bar2=2,2,1,1
+Bar3=2,2,1,1
+Bar4=1,1,1,1
 
 [NodeForces]
-Count=3
-Node1=23
+Count=5
+Node1=0
 Node2=0
-Node3=0
+Node3=1
+Node4=0
+Node5=0
 
 [BarForces]
-Count=2
-Bar1=-12
+Count=4
+Bar1=1
 Bar2=0
+Bar3=0
+Bar4=-1
