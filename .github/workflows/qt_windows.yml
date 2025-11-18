@@ -3,8 +3,6 @@ name: CMake
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -46,5 +44,6 @@ jobs:
       
     - name: Release
       uses: softprops/action-gh-release@v2
+      if: github.ref_type == 'tag'
       with:
         files: ${{github.workspace}}/build/bin/Release/mini_sapr.exe
