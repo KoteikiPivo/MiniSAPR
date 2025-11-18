@@ -15,6 +15,34 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="1">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>3</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="SchemaTab">
+       <attribute name="title">
+        <string>Схема</string>
+       </attribute>
+      </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Эпюры</string>
+       </attribute>
+      </widget>
+      <widget class="QWidget" name="tab_4">
+       <attribute name="title">
+        <string>Таблицы</string>
+       </attribute>
+      </widget>
+     </widget>
+    </item>
     <item row="0" column="0">
      <widget class="QScrollArea" name="scrollArea">
       <property name="sizePolicy">
@@ -29,6 +57,12 @@
         <height>0</height>
        </size>
       </property>
+      <property name="maximumSize">
+       <size>
+        <width>550</width>
+        <height>16777215</height>
+       </size>
+      </property>
       <property name="widgetResizable">
        <bool>true</bool>
       </property>
@@ -38,7 +72,7 @@
          <x>0</x>
          <y>0</y>
          <width>381</width>
-         <height>581</height>
+         <height>579</height>
         </rect>
        </property>
        <property name="sizePolicy">
@@ -180,24 +214,6 @@
       </widget>
      </widget>
     </item>
-    <item row="0" column="1">
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>3</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <widget class="QWidget" name="SchemaTab">
-       <attribute name="title">
-        <string>Схема</string>
-       </attribute>
-      </widget>
-     </widget>
-    </item>
    </layout>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -207,7 +223,7 @@
      <x>0</x>
      <y>0</y>
      <width>980</width>
-     <height>29</height>
+     <height>30</height>
     </rect>
    </property>
    <property name="defaultUp">
