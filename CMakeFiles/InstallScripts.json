@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/sqbe/MiniSAPR/cmake_install.cmake",
-		"/home/sqbe/MiniSAPR/src/app/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
