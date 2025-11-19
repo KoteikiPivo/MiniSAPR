@@ -31,12 +31,12 @@
         <string>Схема</string>
        </attribute>
       </widget>
-      <widget class="QWidget" name="tab_3">
+      <widget class="QWidget" name="DiagramTab">
        <attribute name="title">
         <string>Эпюры</string>
        </attribute>
       </widget>
-      <widget class="QWidget" name="tab_4">
+      <widget class="QWidget" name="TableTab">
        <attribute name="title">
         <string>Таблицы</string>
        </attribute>
