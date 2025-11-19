@@ -2,8 +2,10 @@ name: CMake
 
 on:
   push:
+    branches:
+      - '**'
     tags:
-      - "v*.*.*"
+      - 'v*'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
