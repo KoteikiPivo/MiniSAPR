@@ -1,9 +1,7 @@
 name: CMake
 
 on:
-  push:
-    branches:
-      - '**'
+  create:
     tags:
       - 'v*'
 
